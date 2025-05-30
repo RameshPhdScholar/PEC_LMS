@@ -28,11 +28,11 @@ export default async function handler(
     }
 
     // Parse query parameters for filtering
-    const { 
-      department_id, 
-      user_id, 
-      leave_type_id, 
-      start_date, 
+    const {
+      department_id,
+      user_id,
+      leave_type_id,
+      start_date,
       end_date,
       limit = '50' // Default limit to 50 records
     } = req.query;
@@ -41,14 +41,19 @@ export default async function handler(
     let baseQuery = `
       SELECT la.*,
         u.full_name as user_name,
+        u.employee_id,
+        u.employee_position,
+        u.gender,
+        u.department_id,
         lt.name as leave_type_name,
         d.name as department_name,
+        d.code as department_code,
         hod.full_name as hod_approver_name,
         principal.full_name as principal_approver_name
       FROM leave_applications la
       JOIN users u ON la.user_id = u.id
       JOIN leave_types lt ON la.leave_type_id = lt.id
-      JOIN departments d ON u.department_id = d.id
+      LEFT JOIN departments d ON u.department_id = d.id
       LEFT JOIN users hod ON la.hod_approval_user_id = hod.id
       LEFT JOIN users principal ON la.principal_approval_user_id = principal.id
       WHERE la.status = ?
@@ -105,9 +110,39 @@ export default async function handler(
       values,
     });
 
+    // Process the results to create properly structured nested objects
+    const processedLeaves = approvedLeaves.map(app => {
+      const appData = app as any; // Type assertion for SQL join properties
+      return {
+        ...app,
+        user: {
+          id: app.user_id,
+          full_name: appData.user_name || 'Unknown User',
+          employee_id: appData.employee_id || 'Not Set',
+          employee_position: appData.employee_position || 'Not Set',
+          gender: appData.gender || 'Not Set',
+          department: {
+            id: appData.department_id || 0,
+            name: appData.department_name || 'Unknown Department',
+            code: appData.department_code || 'UNK'
+          }
+        },
+        leave_type: {
+          id: app.leave_type_id,
+          name: appData.leave_type_name || 'Unknown Leave Type'
+        },
+        hod_approver: appData.hod_approver_name ? {
+          full_name: appData.hod_approver_name
+        } : undefined,
+        principal_approver: appData.principal_approver_name ? {
+          full_name: appData.principal_approver_name
+        } : undefined
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: approvedLeaves,
+      data: processedLeaves as LeaveApplication[],
     });
   } catch (error: any) {
     console.error('Error in approved leaves API:', error);

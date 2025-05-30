@@ -27,6 +27,14 @@ export default async function handler(
       });
     }
 
+    // System users (HODs, Admin, Principal, SuperAdmin) don't have leave balances
+    if (session.user.isAdminUser) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
+
     // Get current year
     const currentYear = new Date().getFullYear();
 

@@ -134,8 +134,12 @@ export default async function handler(
     // Determine the user ID for rejection
     let rejectionUserId = null;
     if (session.user.role_id === UserRole.HOD) {
-      // Use the HOD user ID if available
-      rejectionUserId = hodUser?.user_id || null;
+      // Check if HOD exists in users table
+      const hodUser = await db.getRow<{ id: number }>({
+        query: `SELECT id FROM users WHERE email = ? AND role_id = ?`,
+        values: [session.user.email, UserRole.HOD],
+      });
+      rejectionUserId = hodUser?.id || null;
     } else if (session.user.role_id === UserRole.Principal) {
       // Check if Principal exists in users table
       const principalUser = await db.getRow<{ id: number }>({
@@ -179,19 +183,53 @@ export default async function handler(
         SELECT la.*,
           lt.name as leave_type_name,
           u.full_name as user_name,
-          d.name as department_name
+          u.employee_id,
+          u.employee_position,
+          u.gender,
+          u.department_id,
+          d.name as department_name,
+          d.code as department_code
         FROM leave_applications la
         JOIN leave_types lt ON la.leave_type_id = lt.id
         JOIN users u ON la.user_id = u.id
-        JOIN departments d ON u.department_id = d.id
+        LEFT JOIN departments d ON u.department_id = d.id
         WHERE la.id = ?
       `,
       values: [id],
     });
 
+    if (updatedLeaveApplication) {
+      const appData = updatedLeaveApplication as any; // Type assertion for SQL join properties
+      const processedApplication = {
+        ...updatedLeaveApplication,
+        user: {
+          id: updatedLeaveApplication.user_id,
+          full_name: appData.user_name || 'Unknown User',
+          employee_id: appData.employee_id || 'Not Set',
+          employee_position: appData.employee_position || 'Not Set',
+          gender: appData.gender || 'Not Set',
+          department: {
+            id: appData.department_id || 0,
+            name: appData.department_name || 'Unknown Department',
+            code: appData.department_code || 'UNK'
+          }
+        },
+        leave_type: {
+          id: updatedLeaveApplication.leave_type_id,
+          name: appData.leave_type_name || 'Unknown Leave Type'
+        }
+      };
+
+      return res.status(200).json({
+        success: true,
+        data: processedApplication as LeaveApplication,
+        message: 'Leave application rejected successfully',
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      data: updatedLeaveApplication || undefined,
+      data: undefined,
       message: 'Leave application rejected successfully',
     });
   } catch (error: any) {

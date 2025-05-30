@@ -31,17 +31,21 @@ import {
 } from '@mui/material';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { format, differenceInBusinessDays, addDays, isWeekend } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import DashboardLayout from '@/components/Dashboard/Layout';
 import { LeaveType, LeaveApplicationFormData, LeaveBalance, UserRole } from '@/types';
 
 // Validation schema
 const validationSchema = Yup.object({
-  leave_type_id: Yup.number().required('Leave type is required'),
+  leave_type_id: Yup.number().required('Leave type is required').min(1, 'Please select a valid leave type'),
   start_date: Yup.date().required('Start date is required'),
   end_date: Yup.date()
     .required('End date is required')
-    .min(Yup.ref('start_date'), 'End date must be after start date'),
+    .test('date-range', 'End date cannot be before start date', function(value) {
+      const { start_date } = this.parent;
+      if (!start_date || !value) return true;
+      return new Date(value) >= new Date(start_date);
+    }),
   reason: Yup.string().required('Reason is required').min(10, 'Reason should be at least 10 characters'),
 });
 
@@ -54,15 +58,39 @@ export default function ApplyLeave() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Calculate business days between two dates (excluding weekends)
+  // Calculate business days between two dates (excluding Sundays and second Saturdays)
   const calculateBusinessDays = (startDate: Date, endDate: Date) => {
     let days = 0;
     let currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-      if (!isWeekend(currentDate)) {
+      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+      // Check if it's Sunday
+      if (dayOfWeek === 0) {
+        // Skip Sunday
+      }
+      // Check if it's second Saturday of the month
+      else if (dayOfWeek === 6) {
+        const dateOfMonth = currentDate.getDate();
+        // Calculate the date of the first Saturday of the month
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const firstSaturday = 7 - firstDayOfMonth.getDay() + 6;
+        const secondSaturday = firstSaturday + 7;
+
+        // If it's the second Saturday, skip it (holiday)
+        if (dateOfMonth >= secondSaturday && dateOfMonth < secondSaturday + 7) {
+          // Skip second Saturday - it's a holiday
+        } else {
+          // It's a working Saturday (1st, 3rd, 4th, 5th Saturday)
+          days++;
+        }
+      }
+      // All other days (Monday to Friday) are working days
+      else {
         days++;
       }
+
       currentDate = addDays(currentDate, 1);
     }
 
@@ -78,15 +106,57 @@ export default function ApplyLeave() {
       reason: '',
     },
     validationSchema,
+    validateOnMount: false,
+    validateOnChange: true,
+    validateOnBlur: true,
     onSubmit: async (values) => {
       try {
         setSubmitting(true);
         setError('');
 
+        // Validate required fields before submission
+        if (!values.leave_type_id || values.leave_type_id === 0) {
+          setError('Please select a leave type');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.start_date) {
+          setError('Please select a start date');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.end_date) {
+          setError('Please select an end date');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.reason || values.reason.trim().length < 10) {
+          setError('Please provide a reason for leave (at least 10 characters)');
+          setSubmitting(false);
+          return;
+        }
+
         // Calculate business days
         const startDate = new Date(values.start_date);
         const endDate = new Date(values.end_date);
+
+        // Validate date range
+        if (endDate < startDate) {
+          setError('End date cannot be before start date');
+          setSubmitting(false);
+          return;
+        }
+
         const days = calculateBusinessDays(startDate, endDate);
+
+        if (days <= 0) {
+          setError('Selected date range contains no working days. Please avoid Sundays and second Saturdays.');
+          setSubmitting(false);
+          return;
+        }
 
         // Check if user has enough leave balance
         const selectedLeaveTypeBalance = leaveBalances.find(
@@ -100,8 +170,11 @@ export default function ApplyLeave() {
         }
 
         // Submit the leave application
-        const response = await axios.post('/api/leaves', {
-          ...values,
+        await axios.post('/api/leaves', {
+          leave_type_id: values.leave_type_id,
+          start_date: values.start_date,
+          end_date: values.end_date,
+          reason: values.reason.trim(),
           days,
         });
 

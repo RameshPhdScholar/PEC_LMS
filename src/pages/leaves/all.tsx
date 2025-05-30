@@ -22,6 +22,7 @@ import {
   TextField,
   MenuItem,
   Grid,
+  SelectChangeEvent,
 } from '@mui/material';
 import {
   CheckCircle as ApprovedIcon,
@@ -100,13 +101,13 @@ export default function AllLeaves() {
 
     if (filters.department_id) {
       result = result.filter(leave =>
-        leave.user?.department_id === parseInt(filters.department_id)
+        leave.user?.department?.id === parseInt(filters.department_id)
       );
     }
 
     if (filters.leave_type_id) {
       result = result.filter(leave =>
-        leave.leave_type_id === parseInt(filters.leave_type_id)
+        leave.leave_type?.id === parseInt(filters.leave_type_id)
       );
     }
 
@@ -127,9 +128,9 @@ export default function AllLeaves() {
     setFilteredLeaves(result);
   }, [filters, leaves]);
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement> | SelectChangeEvent) => {
     const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+    setFilters(prev => ({ ...prev, [name as string]: value }));
   };
 
   const resetFilters = () => {
@@ -240,7 +241,7 @@ export default function AllLeaves() {
               Filters
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={6} md={2.4}>
                 <TextField
                   select
                   fullWidth
@@ -259,7 +260,7 @@ export default function AllLeaves() {
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={6} md={2.4}>
                 <TextField
                   select
                   fullWidth
@@ -278,7 +279,7 @@ export default function AllLeaves() {
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid item xs={12} sm={6} md={2.4}>
                 <TextField
                   select
                   fullWidth
@@ -297,17 +298,46 @@ export default function AllLeaves() {
                   <MenuItem value={LeaveStatus.Cancelled}>Cancelled</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Button
-                  variant="outlined"
-                  onClick={resetFilters}
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
                   fullWidth
-                  sx={{ height: '40px' }}
-                >
-                  Reset Filters
-                </Button>
+                  label="Start Date"
+                  name="startDate"
+                  type="date"
+                  value={filters.startDate}
+                  onChange={handleFilterChange}
+                  variant="outlined"
+                  size="small"
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
+                  fullWidth
+                  label="End Date"
+                  name="endDate"
+                  type="date"
+                  value={filters.endDate}
+                  onChange={handleFilterChange}
+                  variant="outlined"
+                  size="small"
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
               </Grid>
             </Grid>
+            <Box mt={2}>
+              <Button
+                variant="outlined"
+                onClick={resetFilters}
+                sx={{ height: '40px' }}
+              >
+                Reset Filters
+              </Button>
+            </Box>
           </Paper>
 
           {filteredLeaves.length === 0 ? (

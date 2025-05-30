@@ -33,6 +33,7 @@ export default async function handler(
             u.employee_id,
             u.employee_position,
             u.gender,
+            u.department_id,
             lt.name as leave_type_name,
             d.name as department_name,
             d.code as department_code,
@@ -73,6 +74,7 @@ export default async function handler(
               u.employee_id,
               u.employee_position,
               u.gender,
+              u.department_id,
               lt.name as leave_type_name,
               d.name as department_name,
               d.code as department_code,
@@ -96,6 +98,7 @@ export default async function handler(
               u.employee_id,
               u.employee_position,
               u.gender,
+              u.department_id,
               lt.name as leave_type_name,
               d.name as department_name,
               d.code as department_code,
@@ -114,9 +117,18 @@ export default async function handler(
         // Regular employees can only see their own leave applications
         query = `
           SELECT la.*,
-            lt.name as leave_type_name
+            u.full_name as user_name,
+            u.employee_id,
+            u.employee_position,
+            u.gender,
+            u.department_id,
+            lt.name as leave_type_name,
+            d.name as department_name,
+            d.code as department_code
           FROM leave_applications la
+          JOIN users u ON la.user_id = u.id
           JOIN leave_types lt ON la.leave_type_id = lt.id
+          LEFT JOIN departments d ON u.department_id = d.id
           WHERE la.user_id = ?
           ORDER BY la.created_at DESC
         `;
@@ -128,9 +140,39 @@ export default async function handler(
         values,
       });
 
+      // Process the results to create properly structured nested objects
+      const processedApplications = leaveApplications.map(app => {
+        const appData = app as any; // Type assertion for SQL join properties
+        return {
+          ...app,
+          user: {
+            id: app.user_id,
+            full_name: appData.user_name || session.user.name || session.user.email?.split('@')[0] || 'Unknown User',
+            employee_id: appData.employee_id || session.user.employee_id || 'Not Set',
+            employee_position: appData.employee_position || 'Not Set',
+            gender: appData.gender || 'Not Set',
+            department: {
+              id: appData.department_id || session.user.department_id || 0,
+              name: appData.department_name || session.user.department_name || 'Unknown Department',
+              code: appData.department_code || 'UNK'
+            }
+          },
+          leave_type: {
+            id: app.leave_type_id,
+            name: appData.leave_type_name || 'Unknown Leave Type'
+          },
+          hod_approver: appData.hod_approver_name ? {
+            full_name: appData.hod_approver_name
+          } : undefined,
+          principal_approver: appData.principal_approver_name ? {
+            full_name: appData.principal_approver_name
+          } : undefined
+        };
+      });
+
       return res.status(200).json({
         success: true,
-        data: leaveApplications,
+        data: processedApplications as LeaveApplication[],
       });
     }
 
@@ -147,10 +189,45 @@ export default async function handler(
       const { leave_type_id, start_date, end_date, days, reason } = req.body;
 
       // Validate required fields
-      if (!leave_type_id || !start_date || !end_date || !days || !reason) {
+      if (!leave_type_id || leave_type_id === 0) {
         return res.status(400).json({
           success: false,
-          error: 'Missing required fields',
+          error: 'Leave type is required',
+        });
+      }
+
+      if (!start_date) {
+        return res.status(400).json({
+          success: false,
+          error: 'Start date is required',
+        });
+      }
+
+      if (!end_date) {
+        return res.status(400).json({
+          success: false,
+          error: 'End date is required',
+        });
+      }
+
+      if (!days || days <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Number of days is required and must be greater than 0',
+        });
+      }
+
+      if (!reason || reason.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Reason for leave is required',
+        });
+      }
+
+      if (reason.trim().length < 10) {
+        return res.status(400).json({
+          success: false,
+          error: 'Reason for leave must be at least 10 characters',
         });
       }
 
@@ -190,13 +267,53 @@ export default async function handler(
       // Get the created leave application
       const leaveApplication = await db.getRow<LeaveApplication>({
         query: `
-          SELECT la.*, lt.name as leave_type_name
+          SELECT la.*,
+            u.full_name as user_name,
+            u.employee_id,
+            u.employee_position,
+            u.gender,
+            u.department_id,
+            lt.name as leave_type_name,
+            d.name as department_name,
+            d.code as department_code
           FROM leave_applications la
+          JOIN users u ON la.user_id = u.id
           JOIN leave_types lt ON la.leave_type_id = lt.id
+          LEFT JOIN departments d ON u.department_id = d.id
           WHERE la.id = ?
         `,
         values: [result.insertId],
       });
+
+      // Process the result to create properly structured nested objects
+      if (leaveApplication) {
+        const appData = leaveApplication as any; // Type assertion for SQL join properties
+        const processedApplication = {
+          ...leaveApplication,
+          user: {
+            id: leaveApplication.user_id,
+            full_name: appData.user_name || session.user.name || session.user.email?.split('@')[0] || 'Unknown User',
+            employee_id: appData.employee_id || session.user.employee_id || 'Not Set',
+            employee_position: appData.employee_position || 'Not Set',
+            gender: appData.gender || 'Not Set',
+            department: {
+              id: appData.department_id || session.user.department_id || 0,
+              name: appData.department_name || session.user.department_name || 'Unknown Department',
+              code: appData.department_code || 'UNK'
+            }
+          },
+          leave_type: {
+            id: leaveApplication.leave_type_id,
+            name: appData.leave_type_name || 'Unknown Leave Type'
+          }
+        };
+
+        return res.status(201).json({
+          success: true,
+          data: processedApplication as LeaveApplication,
+          message: 'Leave application submitted successfully',
+        });
+      }
 
       // Add to leave history
       await db.executeQuery({
@@ -208,10 +325,9 @@ export default async function handler(
         values: [result.insertId, session.user.id],
       });
 
-      return res.status(201).json({
-        success: true,
-        data: leaveApplication || undefined,
-        message: 'Leave application submitted successfully',
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to process leave application',
       });
     }
 

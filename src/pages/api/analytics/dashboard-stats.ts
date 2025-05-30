@@ -33,14 +33,43 @@ export default async function handler(
 
     // For HODs, filter by department
     if (session.user.role_id === UserRole.HOD) {
-      departmentFilter = 'WHERE u.department_id = ?';
-      departmentValues = [session.user.department_id];
+      // Get HOD's department from their email
+      const hodEmail = session.user.email;
+      let hodDepartmentId = null;
+
+      if (hodEmail) {
+        // Extract department code from email (e.g., csm.hod@... -> CSM)
+        const emailPrefix = hodEmail.split('@')[0];
+        const departmentCode = emailPrefix.split('.')[0].toUpperCase();
+
+        // Map department codes to IDs
+        const departmentMap: { [key: string]: number } = {
+          'CSE': 1,
+          'CSD': 2,
+          'CSC': 3,
+          'CSM': 4,
+          'CE': 5,
+          'EEE': 6,
+          'ECE': 7,
+          'HAS': 8,
+          'H&S': 8,
+          'MBA': 9,
+          'ADMIN': 10
+        };
+
+        hodDepartmentId = departmentMap[departmentCode] || null;
+      }
+
+      if (hodDepartmentId) {
+        departmentFilter = 'WHERE u.department_id = ?';
+        departmentValues = [hodDepartmentId];
+      }
     }
 
     // Get dashboard stats
     const dashboardStatsQuery = `
       SELECT
-        (SELECT COUNT(*) FROM users ${departmentFilter ? departmentFilter : ''}) as totalEmployees,
+        (SELECT COUNT(*) FROM users u ${departmentFilter ? departmentFilter : ''}) as totalEmployees,
         (SELECT COUNT(*) FROM leave_applications la
           JOIN users u ON la.user_id = u.id
           ${departmentFilter ? departmentFilter : ''}) as totalLeaveApplications,
@@ -58,9 +87,13 @@ export default async function handler(
           ${departmentFilter ? 'AND' : 'WHERE'} (la.status = 'Rejected' OR la.status = 'Cancelled')) as rejectedLeaveApplications
     `;
 
+    // For dashboard stats, we need to repeat the department value for each subquery
+    const dashboardStatsValues = departmentValues.length > 0 ?
+      Array(5).fill(departmentValues[0]) : [];
+
     const dashboardStats = await db.getRow<DashboardStats>({
       query: dashboardStatsQuery,
-      values: departmentValues.length > 0 ? [...departmentValues, ...departmentValues, ...departmentValues, ...departmentValues] : [],
+      values: dashboardStatsValues,
     });
 
     // Get leave status distribution

@@ -3,28 +3,19 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import axios from 'axios';
-import { format, addDays, isWeekend } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import {
   Box,
   Grid,
   Paper,
   Typography,
   CircularProgress,
-  Tabs,
-  Tab,
   Divider,
   Button,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormHelperText,
   Alert,
   Chip,
   Dialog,
@@ -53,10 +44,8 @@ import {
   CheckCircle as ApprovedIcon,
   Cancel as RejectedIcon,
   HourglassEmpty as PendingIcon,
-  Add as AddIcon,
   Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
-
 } from '@mui/icons-material';
 import DashboardLayout from '@/components/Dashboard/Layout';
 import {
@@ -83,35 +72,17 @@ import {
 
 // Validation schema for leave application
 const validationSchema = Yup.object({
-  leave_type_id: Yup.number().required('Leave type is required'),
+  leave_type_id: Yup.number().required('Leave type is required').min(1, 'Please select a valid leave type'),
   start_date: Yup.date().required('Start date is required'),
   end_date: Yup.date()
     .required('End date is required')
-    .min(Yup.ref('start_date'), 'End date must be after start date'),
+    .test('date-range', 'End date cannot be before start date', function(value) {
+      const { start_date } = this.parent;
+      if (!start_date || !value) return true;
+      return new Date(value) >= new Date(start_date);
+    }),
   reason: Yup.string().required('Reason is required').min(10, 'Reason should be at least 10 characters'),
 });
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`dashboard-tabpanel-${index}`}
-      aria-labelledby={`dashboard-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -209,6 +180,8 @@ export default function Dashboard() {
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    // Clear error when switching tabs
+    setError('');
   };
 
   const handleViewLeaveDetails = (leave: LeaveApplication) => {
@@ -221,15 +194,39 @@ export default function Dashboard() {
     setSelectedLeave(null);
   };
 
-  // Calculate business days between two dates (excluding weekends)
+  // Calculate business days between two dates (excluding Sundays and second Saturdays)
   const calculateBusinessDays = (startDate: Date, endDate: Date) => {
     let days = 0;
     let currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-      if (!isWeekend(currentDate)) {
+      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+      // Check if it's Sunday
+      if (dayOfWeek === 0) {
+        // Skip Sunday
+      }
+      // Check if it's second Saturday of the month
+      else if (dayOfWeek === 6) {
+        const dateOfMonth = currentDate.getDate();
+        // Calculate the date of the first Saturday of the month
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const firstSaturday = 7 - firstDayOfMonth.getDay() + 6;
+        const secondSaturday = firstSaturday + 7;
+
+        // If it's the second Saturday, skip it (holiday)
+        if (dateOfMonth >= secondSaturday && dateOfMonth < secondSaturday + 7) {
+          // Skip second Saturday - it's a holiday
+        } else {
+          // It's a working Saturday (1st, 3rd, 4th, 5th Saturday)
+          days++;
+        }
+      }
+      // All other days (Monday to Friday) are working days
+      else {
         days++;
       }
+
       currentDate = addDays(currentDate, 1);
     }
 
@@ -245,15 +242,57 @@ export default function Dashboard() {
       reason: '',
     },
     validationSchema,
+    validateOnMount: false,
+    validateOnChange: true,
+    validateOnBlur: true,
     onSubmit: async (values) => {
       try {
         setSubmitting(true);
         setError('');
 
+        // Validate required fields before submission
+        if (!values.leave_type_id || values.leave_type_id === 0) {
+          setError('Please select a leave type');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.start_date) {
+          setError('Please select a start date');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.end_date) {
+          setError('Please select an end date');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!values.reason || values.reason.trim().length < 10) {
+          setError('Please provide a reason for leave (at least 10 characters)');
+          setSubmitting(false);
+          return;
+        }
+
         // Calculate business days
         const startDate = new Date(values.start_date);
         const endDate = new Date(values.end_date);
+
+        // Validate date range
+        if (endDate < startDate) {
+          setError('End date cannot be before start date');
+          setSubmitting(false);
+          return;
+        }
+
         const days = calculateBusinessDays(startDate, endDate);
+
+        if (days <= 0) {
+          setError('Selected date range contains no working days. Please avoid Sundays and second Saturdays.');
+          setSubmitting(false);
+          return;
+        }
 
         // Check if user has enough leave balance
         const selectedLeaveTypeBalance = leaveBalances.find(
@@ -268,7 +307,10 @@ export default function Dashboard() {
 
         // Submit the leave application
         await axios.post('/api/leaves', {
-          ...values,
+          leave_type_id: values.leave_type_id,
+          start_date: values.start_date,
+          end_date: values.end_date,
+          reason: values.reason.trim(),
           days,
         });
 
@@ -410,19 +452,8 @@ export default function Dashboard() {
           <title>HOD Dashboard | Leave Management System</title>
         </Head>
 
-
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="hod dashboard tabs">
-            <Tab label="Dashboard" icon={<DashboardIcon />} iconPosition="start" />
-            <Tab label="Pending Approvals" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Department Leaves" icon={<PeopleIcon />} iconPosition="start" />
-            <Tab label="My Leaves" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Apply for Leave" icon={<AddIcon />} iconPosition="start" />
-          </Tabs>
-        </Box>
-
-        {/* Dashboard Tab */}
-        <TabPanel value={tabValue} index={0}>
+        {/* Dashboard Content */}
+        <Box sx={{ py: 3 }}>
           <Grid container spacing={3}>
             {/* Stats Cards */}
             <Grid item xs={12} sm={6} md={3}>
@@ -495,184 +526,7 @@ export default function Dashboard() {
               />
             </Grid>
           </Grid>
-        </TabPanel>
-
-        {/* Pending Approvals Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <EmployeeLeaveTable
-            data={leaves.filter(leave => leave.status === LeaveStatus.Pending)}
-            loading={leavesLoading}
-            title="Pending Leave Approvals"
-            onViewDetails={handleViewLeaveDetails}
-          />
-        </TabPanel>
-
-        {/* Department Leaves Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <EmployeeLeaveTable
-            data={leaves}
-            loading={leavesLoading}
-            title="All Department Leave Applications"
-            onViewDetails={handleViewLeaveDetails}
-            showDepartmentFilter={true}
-            departments={departments}
-          />
-        </TabPanel>
-
-        {/* My Leaves Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <EmployeeLeaveTable
-            data={leaves.filter(leave => leave.user_id === session?.user.id)}
-            loading={leavesLoading}
-            title="My Leave Applications"
-            onViewDetails={handleViewLeaveDetails}
-          />
-        </TabPanel>
-
-        {/* Apply for Leave Tab */}
-        <TabPanel value={tabValue} index={4}>
-          <Grid container spacing={3}>
-            {/* Leave Balance Summary */}
-            <Grid item xs={12} md={4}>
-              <LeaveBalanceSummary
-                data={leaveBalances}
-                loading={loading}
-                title="Available Leave Balances"
-              />
-            </Grid>
-
-            {/* Leave Application Form */}
-            <Grid item xs={12} md={8}>
-              <Paper elevation={2} sx={{ p: 3, borderRadius: 2 }}>
-                <Typography variant="h6" fontWeight="bold" gutterBottom>
-                  Apply for Leave
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-
-                {error && (
-                  <Alert severity="error" sx={{ mb: 3 }}>
-                    {error}
-                  </Alert>
-                )}
-
-                <form onSubmit={formik.handleSubmit}>
-                  <Grid container spacing={3}>
-                    {/* Leave Type */}
-                    <Grid item xs={12}>
-                      <FormControl fullWidth error={formik.touched.leave_type_id && Boolean(formik.errors.leave_type_id)}>
-                        <InputLabel id="leave-type-label">Leave Type</InputLabel>
-                        <Select
-                          labelId="leave-type-label"
-                          id="leave_type_id"
-                          name="leave_type_id"
-                          value={formik.values.leave_type_id}
-                          onChange={formik.handleChange}
-                          label="Leave Type"
-                        >
-                          <MenuItem value={0} disabled>
-                            Select Leave Type
-                          </MenuItem>
-                          {leaveTypes.map((type) => {
-                            const balance = leaveBalances.find((b) => b.leave_type_id === type.id);
-                            return (
-                              <MenuItem key={type.id} value={type.id}>
-                                {type.name} (Balance: {balance ? balance.balance : 0} days)
-                              </MenuItem>
-                            );
-                          })}
-                        </Select>
-                        {formik.touched.leave_type_id && formik.errors.leave_type_id && (
-                          <FormHelperText>{formik.errors.leave_type_id}</FormHelperText>
-                        )}
-                      </FormControl>
-                    </Grid>
-
-                    {/* Date Range */}
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.start_date && Boolean(formik.errors.start_date)}>
-                        <InputLabel shrink htmlFor="start_date">
-                          Start Date
-                        </InputLabel>
-                        <DatePicker
-                          selected={formik.values.start_date ? new Date(formik.values.start_date) : null}
-                          onChange={handleStartDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={new Date()}
-                          customInput={
-                            <TextField
-                              id="start_date"
-                              name="start_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.start_date && Boolean(formik.errors.start_date)}
-                              helperText={formik.touched.start_date && formik.errors.start_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.end_date && Boolean(formik.errors.end_date)}>
-                        <InputLabel shrink htmlFor="end_date">
-                          End Date
-                        </InputLabel>
-                        <DatePicker
-                          selected={formik.values.end_date ? new Date(formik.values.end_date) : null}
-                          onChange={handleEndDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={formik.values.start_date ? new Date(formik.values.start_date) : new Date()}
-                          customInput={
-                            <TextField
-                              id="end_date"
-                              name="end_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.end_date && Boolean(formik.errors.end_date)}
-                              helperText={formik.touched.end_date && formik.errors.end_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    {/* Reason */}
-                    <Grid item xs={12}>
-                      <TextField
-                        id="reason"
-                        name="reason"
-                        label="Reason for Leave"
-                        multiline
-                        rows={4}
-                        fullWidth
-                        value={formik.values.reason}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        error={formik.touched.reason && Boolean(formik.errors.reason)}
-                        helperText={formik.touched.reason && formik.errors.reason}
-                      />
-                    </Grid>
-
-                    {/* Submit Button */}
-                    <Grid item xs={12}>
-                      <Box display="flex" justifyContent="flex-end" mt={2}>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          type="submit"
-                          disabled={submitting}
-                          sx={{ minWidth: 150 }}
-                        >
-                          {submitting ? <CircularProgress size={24} /> : 'Submit Application'}
-                        </Button>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </form>
-              </Paper>
-            </Grid>
-          </Grid>
-        </TabPanel>
+        </Box>
       </>
     );
   };
@@ -833,21 +687,8 @@ export default function Dashboard() {
           <title>Principal Dashboard | Leave Management System</title>
         </Head>
 
-
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="principal dashboard tabs">
-            <Tab label="Dashboard" icon={<DashboardIcon />} iconPosition="start" />
-            <Tab label="Pending Approvals" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Approved Leaves" icon={<ApprovedIcon />} iconPosition="start" />
-            <Tab label="Rejected Leaves" icon={<RejectedIcon />} iconPosition="start" />
-            <Tab label="My Leaves" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Apply for Leave" icon={<AddIcon />} iconPosition="start" />
-            <Tab label="Employees" icon={<PeopleIcon />} iconPosition="start" />
-          </Tabs>
-        </Box>
-
-        {/* Dashboard Tab */}
-        <TabPanel value={tabValue} index={0}>
+        {/* Dashboard Content */}
+        <Box sx={{ py: 3 }}>
           <Grid container spacing={3}>
             {/* Stats Cards */}
             <Grid item xs={12} sm={6} md={3}>
@@ -929,245 +770,7 @@ export default function Dashboard() {
               />
             </Grid>
           </Grid>
-        </TabPanel>
-
-        {/* Pending Approvals Tab */}
-        <TabPanel value={tabValue} index={1}>
-          {(() => {
-            const hodApprovedLeaves = leaves.filter(leave => leave.status === LeaveStatus.HODApproved);
-            console.log('Principal Dashboard - HOD Approved Leaves:', hodApprovedLeaves.length, hodApprovedLeaves);
-            return (
-              <Box>
-                {hodApprovedLeaves.length > 0 && (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    <Typography variant="body2">
-                      <strong>{hodApprovedLeaves.length} leave application(s)</strong> are waiting for your approval.
-                      Review each application carefully before making a decision.
-                    </Typography>
-                  </Alert>
-                )}
-                <EmployeeLeaveTable
-                  data={hodApprovedLeaves}
-                  loading={leavesLoading}
-                  title="HOD Approved Leaves - Pending Principal Approval"
-                  onViewDetails={handleViewLeaveDetails}
-                />
-              </Box>
-            );
-          })()}
-        </TabPanel>
-
-        {/* Approved Leaves Tab */}
-        <TabPanel value={tabValue} index={2}>
-          {(() => {
-            const approvedLeaves = leaves.filter(leave => leave.status === LeaveStatus.PrincipalApproved);
-            console.log('Principal Dashboard - Approved Leaves:', approvedLeaves.length, approvedLeaves);
-            return (
-              <Box>
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>{approvedLeaves.length} leave application(s)</strong> have been approved by you.
-                    This is the complete history of all approved leaves.
-                  </Typography>
-                </Alert>
-                <EmployeeLeaveTable
-                  data={approvedLeaves}
-                  loading={leavesLoading}
-                  title="Principal Approved Leave Applications"
-                  onViewDetails={handleViewLeaveDetails}
-                />
-              </Box>
-            );
-          })()}
-        </TabPanel>
-
-        {/* Rejected Leaves Tab */}
-        <TabPanel value={tabValue} index={3}>
-          {(() => {
-            const rejectedLeaves = leaves.filter(leave => leave.status === LeaveStatus.Rejected);
-            console.log('Principal Dashboard - Rejected Leaves:', rejectedLeaves.length, rejectedLeaves);
-            return (
-              <Box>
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>{rejectedLeaves.length} leave application(s)</strong> have been rejected.
-                    This is the complete history of all rejected leaves with reasons.
-                  </Typography>
-                </Alert>
-                <EmployeeLeaveTable
-                  data={rejectedLeaves}
-                  loading={leavesLoading}
-                  title="Rejected Leave Applications"
-                  onViewDetails={handleViewLeaveDetails}
-                />
-              </Box>
-            );
-          })()}
-        </TabPanel>
-
-        {/* My Leaves Tab */}
-        <TabPanel value={tabValue} index={4}>
-          <EmployeeLeaveTable
-            data={leaves.filter(leave => leave.user_id === session?.user.id)}
-            loading={leavesLoading}
-            title="My Leave Applications"
-            onViewDetails={handleViewLeaveDetails}
-          />
-        </TabPanel>
-
-        {/* Apply for Leave Tab */}
-        <TabPanel value={tabValue} index={5}>
-          <Grid container spacing={3}>
-            {/* Leave Balance Summary */}
-            <Grid item xs={12} md={4}>
-              <LeaveBalanceSummary
-                data={leaveBalances}
-                loading={loading}
-                title="Available Leave Balances"
-              />
-            </Grid>
-
-            {/* Leave Application Form */}
-            <Grid item xs={12} md={8}>
-              <Paper elevation={2} sx={{ p: 3, borderRadius: 2 }}>
-                <Typography variant="h6" fontWeight="bold" gutterBottom>
-                  Apply for Leave
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-
-                {error && (
-                  <Alert severity="error" sx={{ mb: 3 }}>
-                    {error}
-                  </Alert>
-                )}
-
-                <form onSubmit={formik.handleSubmit}>
-                  <Grid container spacing={3}>
-                    {/* Form fields - same as employee dashboard */}
-                    <Grid item xs={12}>
-                      <FormControl fullWidth error={formik.touched.leave_type_id && Boolean(formik.errors.leave_type_id)}>
-                        <InputLabel id="leave-type-label">Leave Type</InputLabel>
-                        <Select
-                          labelId="leave-type-label"
-                          id="leave_type_id"
-                          name="leave_type_id"
-                          value={formik.values.leave_type_id}
-                          onChange={formik.handleChange}
-                          label="Leave Type"
-                        >
-                          <MenuItem value={0} disabled>
-                            Select Leave Type
-                          </MenuItem>
-                          {leaveTypes.map((type) => {
-                            const balance = leaveBalances.find((b) => b.leave_type_id === type.id);
-                            return (
-                              <MenuItem key={type.id} value={type.id}>
-                                {type.name} (Balance: {balance ? balance.balance : 0} days)
-                              </MenuItem>
-                            );
-                          })}
-                        </Select>
-                        {formik.touched.leave_type_id && formik.errors.leave_type_id && (
-                          <FormHelperText>{formik.errors.leave_type_id}</FormHelperText>
-                        )}
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.start_date && Boolean(formik.errors.start_date)}>
-                        <InputLabel shrink htmlFor="start_date">Start Date</InputLabel>
-                        <DatePicker
-                          selected={formik.values.start_date ? new Date(formik.values.start_date) : null}
-                          onChange={handleStartDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={new Date()}
-                          customInput={
-                            <TextField
-                              id="start_date"
-                              name="start_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.start_date && Boolean(formik.errors.start_date)}
-                              helperText={formik.touched.start_date && formik.errors.start_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.end_date && Boolean(formik.errors.end_date)}>
-                        <InputLabel shrink htmlFor="end_date">End Date</InputLabel>
-                        <DatePicker
-                          selected={formik.values.end_date ? new Date(formik.values.end_date) : null}
-                          onChange={handleEndDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={formik.values.start_date ? new Date(formik.values.start_date) : new Date()}
-                          customInput={
-                            <TextField
-                              id="end_date"
-                              name="end_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.end_date && Boolean(formik.errors.end_date)}
-                              helperText={formik.touched.end_date && formik.errors.end_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                      <TextField
-                        id="reason"
-                        name="reason"
-                        label="Reason for Leave"
-                        multiline
-                        rows={4}
-                        fullWidth
-                        value={formik.values.reason}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        error={formik.touched.reason && Boolean(formik.errors.reason)}
-                        helperText={formik.touched.reason && formik.errors.reason}
-                      />
-                    </Grid>
-
-                    <Grid item xs={12}>
-                      <Box display="flex" justifyContent="flex-end" mt={2}>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          type="submit"
-                          disabled={submitting}
-                          sx={{ minWidth: 150 }}
-                        >
-                          {submitting ? <CircularProgress size={24} /> : 'Submit Application'}
-                        </Button>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </form>
-              </Paper>
-            </Grid>
-          </Grid>
-        </TabPanel>
-
-        {/* Employees Tab */}
-        <TabPanel value={tabValue} index={6}>
-          <Paper elevation={2} sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
-              All Employees by Department
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
-
-            <EmployeesByDepartment
-              employees={employees}
-              departments={departments}
-              loading={employeesLoading || departmentsLoading}
-            />
-          </Paper>
-        </TabPanel>
+        </Box>
       </>
     );
   };
@@ -1182,17 +785,8 @@ export default function Dashboard() {
           <title>{session?.user?.name} Dashboard | Leave Management System</title>
         </Head>
 
-
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="{session?.user?.name} dashboard tabs">
-            <Tab label="Dashboard" icon={<DashboardIcon />} iconPosition="start" />
-            <Tab label="My Leaves" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Apply for Leave" icon={<AddIcon />} iconPosition="start" />
-          </Tabs>
-        </Box>
-
-        {/* Dashboard Tab */}
-        <TabPanel value={tabValue} index={0}>
+        {/* Dashboard Content */}
+        <Box sx={{ py: 3 }}>
           <Grid container spacing={3}>
             {/* Leave Balance Summary */}
             <Grid item xs={12} md={6}>
@@ -1231,162 +825,7 @@ export default function Dashboard() {
               />
             </Grid>
           </Grid>
-        </TabPanel>
-
-        {/* My Leaves Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <EmployeeLeaveTable
-            data={leaves}
-            loading={leavesLoading}
-            title="My Leave Applications"
-            onViewDetails={handleViewLeaveDetails}
-          />
-        </TabPanel>
-
-        {/* Apply for Leave Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Grid container spacing={3}>
-            {/* Leave Balance Summary */}
-            <Grid item xs={12} md={4}>
-              <LeaveBalanceSummary
-                data={leaveBalances}
-                loading={loading}
-                title="Available Leave Balances"
-              />
-            </Grid>
-
-            {/* Leave Application Form */}
-            <Grid item xs={12} md={8}>
-              <Paper elevation={2} sx={{ p: 3, borderRadius: 2 }}>
-                <Typography variant="h6" fontWeight="bold" gutterBottom>
-                  Apply for Leave
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-
-                {error && (
-                  <Alert severity="error" sx={{ mb: 3 }}>
-                    {error}
-                  </Alert>
-                )}
-
-                <form onSubmit={formik.handleSubmit}>
-                  <Grid container spacing={3}>
-                    {/* Leave Type */}
-                    <Grid item xs={12}>
-                      <FormControl fullWidth error={formik.touched.leave_type_id && Boolean(formik.errors.leave_type_id)}>
-                        <InputLabel id="leave-type-label">Leave Type</InputLabel>
-                        <Select
-                          labelId="leave-type-label"
-                          id="leave_type_id"
-                          name="leave_type_id"
-                          value={formik.values.leave_type_id}
-                          onChange={formik.handleChange}
-                          label="Leave Type"
-                        >
-                          <MenuItem value={0} disabled>
-                            Select Leave Type
-                          </MenuItem>
-                          {leaveTypes.map((type) => {
-                            const balance = leaveBalances.find((b) => b.leave_type_id === type.id);
-                            return (
-                              <MenuItem key={type.id} value={type.id}>
-                                {type.name} (Balance: {balance ? balance.balance : 0} days)
-                              </MenuItem>
-                            );
-                          })}
-                        </Select>
-                        {formik.touched.leave_type_id && formik.errors.leave_type_id && (
-                          <FormHelperText>{formik.errors.leave_type_id}</FormHelperText>
-                        )}
-                      </FormControl>
-                    </Grid>
-
-                    {/* Date Range */}
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.start_date && Boolean(formik.errors.start_date)}>
-                        <InputLabel shrink htmlFor="start_date">
-                          Start Date
-                        </InputLabel>
-                        <DatePicker
-                          selected={formik.values.start_date ? new Date(formik.values.start_date) : null}
-                          onChange={handleStartDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={new Date()}
-                          customInput={
-                            <TextField
-                              id="start_date"
-                              name="start_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.start_date && Boolean(formik.errors.start_date)}
-                              helperText={formik.touched.start_date && formik.errors.start_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth error={formik.touched.end_date && Boolean(formik.errors.end_date)}>
-                        <InputLabel shrink htmlFor="end_date">
-                          End Date
-                        </InputLabel>
-                        <DatePicker
-                          selected={formik.values.end_date ? new Date(formik.values.end_date) : null}
-                          onChange={handleEndDateChange}
-                          dateFormat="yyyy-MM-dd"
-                          minDate={formik.values.start_date ? new Date(formik.values.start_date) : new Date()}
-                          customInput={
-                            <TextField
-                              id="end_date"
-                              name="end_date"
-                              fullWidth
-                              variant="outlined"
-                              error={formik.touched.end_date && Boolean(formik.errors.end_date)}
-                              helperText={formik.touched.end_date && formik.errors.end_date}
-                            />
-                          }
-                        />
-                      </FormControl>
-                    </Grid>
-
-                    {/* Reason */}
-                    <Grid item xs={12}>
-                      <TextField
-                        id="reason"
-                        name="reason"
-                        label="Reason for Leave"
-                        multiline
-                        rows={4}
-                        fullWidth
-                        value={formik.values.reason}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        error={formik.touched.reason && Boolean(formik.errors.reason)}
-                        helperText={formik.touched.reason && formik.errors.reason}
-                      />
-                    </Grid>
-
-                    {/* Submit Button */}
-                    <Grid item xs={12}>
-                      <Box display="flex" justifyContent="flex-end" mt={2}>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          type="submit"
-                          disabled={submitting}
-                          sx={{ minWidth: 150 }}
-                        >
-                          {submitting ? <CircularProgress size={24} /> : 'Submit Application'}
-                        </Button>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </form>
-              </Paper>
-            </Grid>
-          </Grid>
-        </TabPanel>
+        </Box>
       </>
     );
   };
@@ -1401,18 +840,8 @@ export default function Dashboard() {
           <title>{session?.user?.role_id === UserRole.Admin ? 'Admin' : 'Super Admin'} Dashboard | Leave Management System</title>
         </Head>
 
-
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="admin dashboard tabs">
-            <Tab label="Dashboard" icon={<DashboardIcon />} iconPosition="start" />
-            <Tab label="All Leaves" icon={<LeaveIcon />} iconPosition="start" />
-            <Tab label="Pending Registrations" icon={<PeopleIcon />} iconPosition="start" />
-            <Tab label="Reports" icon={<ReportIcon />} iconPosition="start" />
-          </Tabs>
-        </Box>
-
-        {/* Dashboard Tab */}
-        <TabPanel value={tabValue} index={0}>
+        {/* Dashboard Content */}
+        <Box sx={{ py: 3 }}>
           <Grid container spacing={3}>
             {/* Stats Cards */}
             <Grid item xs={12} sm={6} md={3}>
@@ -1494,157 +923,7 @@ export default function Dashboard() {
               />
             </Grid>
           </Grid>
-        </TabPanel>
-
-        {/* All Leaves Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <EmployeeLeaveTable
-            data={leaves}
-            loading={leavesLoading}
-            title="All Leave Applications"
-            onViewDetails={handleViewLeaveDetails}
-            showDepartmentFilter={true}
-            departments={departments}
-          />
-        </TabPanel>
-
-        {/* Pending Registrations Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Paper elevation={2} sx={{ p: 3, borderRadius: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h6" fontWeight="bold">
-                Pending User Registrations
-              </Typography>
-              <Chip
-                label={`${pendingUsers.length} Pending`}
-                color={pendingUsers.length > 0 ? "warning" : "success"}
-                variant="outlined"
-              />
-            </Box>
-            <Divider sx={{ mb: 3 }} />
-
-            {pendingUsersLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress />
-              </Box>
-            ) : pendingUsers.length === 0 ? (
-              <Box sx={{ textAlign: 'center', p: 4 }}>
-                <Typography variant="h6" color="text.secondary" gutterBottom>
-                  No Pending Registrations
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  All user registrations have been processed.
-                </Typography>
-              </Box>
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Employee ID</TableCell>
-                      <TableCell>Full Name</TableCell>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Phone</TableCell>
-                      <TableCell>Department</TableCell>
-                      <TableCell>Position</TableCell>
-                      <TableCell>Gender</TableCell>
-                      <TableCell>Joining Date</TableCell>
-                      <TableCell>Applied On</TableCell>
-                      <TableCell align="center">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {pendingUsers.map((user) => {
-                      const department = departments.find(d => d.id === user.department_id);
-                      return (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
-                              {user.employee_id}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{user.full_name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.phone_number || 'N/A'}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={department?.name || 'Unknown'}
-                              size="small"
-                              variant="outlined"
-                              color="primary"
-                            />
-                          </TableCell>
-                          <TableCell>{user.employee_position || 'N/A'}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={user.gender || 'N/A'}
-                              size="small"
-                              color={user.gender === 'Female' ? 'secondary' : user.gender === 'Male' ? 'primary' : 'default'}
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>{user.joining_date ? formatDate(user.joining_date) : 'N/A'}</TableCell>
-                          <TableCell>{formatDate(user.created_at)}</TableCell>
-                          <TableCell align="center">
-                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                              <Tooltip title="Approve Registration">
-                                <IconButton
-                                  color="success"
-                                  size="small"
-                                  onClick={() => handleApproveUser(user.id)}
-                                  sx={{
-                                    '&:hover': {
-                                      backgroundColor: 'success.light',
-                                      color: 'white'
-                                    }
-                                  }}
-                                >
-                                  <ApprovedIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Reject Registration">
-                                <IconButton
-                                  color="error"
-                                  size="small"
-                                  onClick={() => handleRejectUser(user)}
-                                  sx={{
-                                    '&:hover': {
-                                      backgroundColor: 'error.light',
-                                      color: 'white'
-                                    }
-                                  }}
-                                >
-                                  <RejectedIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        </TabPanel>
-
-        {/* Reports Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <Typography variant="h6" gutterBottom>
-            Reports
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            View detailed reports on leave management.
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => router.push('/reports')}
-          >
-            Go to Reports
-          </Button>
-        </TabPanel>
+        </Box>
       </>
     );
   };

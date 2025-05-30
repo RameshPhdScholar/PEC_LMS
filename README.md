@@ -1,96 +1,163 @@
 # Leave Management System
 
-A comprehensive leave management system built with Next.js, Material UI, and MySQL.
+A comprehensive leave management system built with Next.js, Material-UI, and MySQL. This system provides role-based access control for employees, HODs, principals, and administrators to manage leave applications efficiently.
 
-## Features
+## 🚀 Features
 
-- 5 user roles: Employee, HOD, Principal, Admin, Super Admin
-- 10 departments with faculty data
-- 6 leave types with configurable balances
-- Approval workflow: Employee → HOD → Principal
-- Real-time data visualization and reporting
-- Leave balance management
+### User Roles
+- **Employee**: Apply for leaves, view leave history
+- **HOD (Head of Department)**: Approve/reject department leaves, view department analytics
+- **Principal**: Final approval for leaves, view all department reports
+- **Admin**: Manage users, leave allocations, system configuration
+- **Super Admin**: Full system access and user management
 
-## Prerequisites
+### Leave Management
+- **6 Leave Types**: Casual Leave, On Duty Leave, Compensatory Casual Leave, Sick Leave, Maternity Leave, Vacation Leave
+- **Approval Workflow**: Employee → HOD → Principal
+- **Advanced Filtering**: Filter by department, leave type, status, date range
+- **Real-time Analytics**: Dashboard with leave statistics and trends
+- **Export Functionality**: Export leave reports to CSV
 
-- Node.js (v14 or higher)
-- MySQL (v8.0 or higher)
-- npm or yarn
+### System Features
+- **10 Departments**: CSE, CSD, CSC, CSM, CE, EEE, ECE, H&S, MBA, Admin
+- **6-Day Work Week**: Automatic holiday calculation with second Saturday off
+- **Individual Leave Allocation**: Admin can set leave balances per user
+- **Automatic Leave Assignment**: 12 casual leaves per year for all users
+- **Rich UI**: Modern Material-UI design with advanced analytics
 
-## Setup Instructions
+## 🛠️ Technology Stack
 
-### 1. Database Setup
+- **Frontend**: Next.js 14, React 18, TypeScript
+- **UI Framework**: Material-UI (MUI) v5
+- **Backend**: Next.js API Routes
+- **Database**: MySQL 8.0
+- **Authentication**: NextAuth.js
+- **Styling**: Material-UI with custom themes
+- **Charts**: Recharts for analytics
+- **Date Handling**: date-fns
 
-1. Create a MySQL database named `leave_management`
-2. Update the database credentials in `.env.local` if needed (default password is 'root')
-3. Run the schema creation script:
+## 📋 Prerequisites
+
+- Node.js 18+
+- MySQL 8.0+
+- npm or yarn package manager
+
+## 🔧 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/leave-management-system.git
+   cd leave-management-system
    ```
-   mysql -u root -proot leave_management < src/db/schema.sql
+
+2. **Install dependencies**
+   ```bash
+   npm install
    ```
 
-### 2. Import Sample Data
+3. **Database Setup**
+   ```bash
+   # Create MySQL database
+   mysql -u root -p
+   CREATE DATABASE leave_management;
 
-Run the following batch file to import all sample data:
+   # Import schema
+   mysql -u root -p leave_management < src/db/schema.sql
+
+   # Import real employee data
+   mysql -u root -p leave_management < src/db/real_credentials_import.sql
+   ```
+
+4. **Environment Configuration**
+   Create a `.env.local` file in the root directory:
+   ```env
+   # Database Configuration
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=root
+   DB_NAME=leave_management
+
+   # NextAuth Configuration
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your-secret-key-here
+   ```
+
+5. **Run the application**
+   ```bash
+   npm run dev
+   ```
+
+6. **Access the application**
+   Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## 👥 Default Login Credentials
+
+### Administrative Users
+- **Super Admin**: superadmin@pallaviengineeringcollege.ac.in / password123
+- **Admin**: admin@pallaviengineeringcollege.ac.in / password123
+- **Principal**: principal@pallaviengineeringcollege.ac.in / password123
+
+### HOD Credentials
+- **CSE HOD**: cse.hod@pallaviengineeringcollege.ac.in / password123
+- **EEE HOD**: eee.hod@pallaviengineeringcollege.ac.in / password123
+- **ECE HOD**: ece.hod@pallaviengineeringcollege.ac.in / password123
+- (And more for each department)
+
+### Employee Access
+Employees can be added through the admin panel with department-specific employee IDs (e.g., CSE001, EEE001, etc.)
+
+## 🎯 Key Features Implemented
+
+### Advanced Filtering
+- Department-wise filtering
+- Leave type filtering
+- Status-based filtering
+- Date range filtering
+- Real-time search
+
+### Analytics Dashboard
+- Leave statistics by department
+- Monthly leave trends
+- Employee leave utilization
+- Approval workflow metrics
+
+### Role-Based Access Control
+- Hierarchical approval system
+- Department-specific access for HODs
+- Comprehensive admin controls
+- Secure authentication
+
+## 🚀 Deployment
+
+### Production Build
+```bash
+npm run build
+npm start
 ```
-import_all_data.bat
-```
 
-This will import:
-- Departments
-- Leave types
-- Employee data with usernames and passwords
+### Environment Variables for Production
+Update `.env.local` with production database credentials and secure secrets.
 
-### 3. Install Dependencies
+## 🤝 Contributing
 
-```
-npm install
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-### 4. Run the Application
+## 📝 License
 
-```
-npm run dev
-```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-The application will be available at http://localhost:3000
+## 👨‍💻 Author
 
-## User Credentials
+**Your Name**
+- GitHub: [@yourusername](https://github.com/yourusername)
+- Email: your.email@example.com
 
-All employees have been created with the following credentials:
-- Username: Their email address (e.g., `employee.name@example.com`)
-- Password: `password123`
+## 🙏 Acknowledgments
 
-You can view and print all employee credentials by logging in as an admin and navigating to "Employee Credentials" in the sidebar.
-
-## User Roles
-
-1. **Employee**: Can apply for leave and view their leave history
-2. **HOD**: Can approve/reject leave applications from their department
-3. **Principal**: Can approve/reject leave applications approved by HODs
-4. **Admin**: Can manage employees, departments, and leave types
-5. **Super Admin**: Has all admin privileges plus can update Casual Leave balances
-
-## Leave Types
-
-1. Casual Leave
-2. Sick Leave
-3. Vacation Leave
-4. On Duty Leave
-5. Compensatory Casual Leave
-6. Maternity Leave
-
-## Departments
-
-1. CSE
-2. CSE(Data Science)
-3. CSE(Cyber Security)
-4. CSE(AIML)
-5. Civil Engineering
-6. EEE
-7. ECE
-8. Humanities and Sciences
-9. MBA
-
-## License
-
-This project is licensed under the MIT License.
+- Material-UI team for the excellent component library
+- Next.js team for the amazing React framework
+- All contributors who helped improve this system
