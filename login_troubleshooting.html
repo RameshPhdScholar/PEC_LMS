@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Troubleshooting Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .step h2 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        .solution {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Login Troubleshooting Guide for Leave Management System</h1>
+    
+    <div class="step">
+        <h2>Issue: Invalid Password Error</h2>
+        <p>You're experiencing an "Invalid password" error when trying to log in with:</p>
+        <ul>
+            <li><strong>Email:</strong> cse.hod@pallaviengineeringcollege.ac.in</li>
+            <li><strong>Password:</strong> password123</li>
+        </ul>
+        <p>This error occurs when the password you entered doesn't match the hashed password stored in the database.</p>
+    </div>
+    
+    <div class="step">
+        <h2>Solution 1: Reset the HOD Password</h2>
+        <p>The simplest solution is to reset the password for the CSE HOD user. I've created a script to do this automatically.</p>
+        
+        <ol>
+            <li>Make sure your MySQL server is running</li>
+            <li>Run the <code>reset_hod_password.bat</code> file by double-clicking it</li>
+            <li>Wait for the script to complete</li>
+            <li>Try logging in again with the same credentials</li>
+        </ol>
+        
+        <div class="solution">
+            <p><strong>Expected Result:</strong> The script will update the password hash in the database, allowing you to log in with the credentials:</p>
+            <ul>
+                <li><strong>Email:</strong> cse.hod@pallaviengineeringcollege.ac.in</li>
+                <li><strong>Password:</strong> password123</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="step">
+        <h2>Solution 2: Verify Database Credentials</h2>
+        <p>If Solution 1 doesn't work, you can verify the database credentials using the <code>verify_login.js</code> script:</p>
+        
+        <ol>
+            <li>Open a command prompt in the project directory</li>
+            <li>Run the command: <code>node verify_login.js</code></li>
+            <li>The script will check if the user exists and if the password hash is correct</li>
+            <li>If prompted, you can choose to update the password hash</li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>Solution 3: Check All HOD Credentials</h2>
+        <p>All HOD users should have the following credentials:</p>
+        
+        <table>
+            <tr>
+                <th>Department</th>
+                <th>Email</th>
+                <th>Password</th>
+            </tr>
+            <tr>
+                <td>Computer Science and Engineering</td>
+                <td>cse.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>CSE - Data Science</td>
+                <td>csd.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>CSE - Cyber Security</td>
+                <td>csc.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>CSE - AI & ML</td>
+                <td>csm.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>Civil Engineering</td>
+                <td>ce.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>Electrical and Electronics Engineering</td>
+                <td>eee.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>Electronics and Communication Engineering</td>
+                <td>ece.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>Humanities and Sciences</td>
+                <td>has.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+            <tr>
+                <td>Master of Business Administration</td>
+                <td>mba.hod@pallaviengineeringcollege.ac.in</td>
+                <td>password123</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="step">
+        <h2>Solution 4: Reimport All Credentials</h2>
+        <p>If you're still having issues, you can reimport all the credentials from the SQL file:</p>
+        
+        <ol>
+            <li>Open a command prompt in the project directory</li>
+            <li>Run the command: <code>mysql -u root -proot leave_management < src\db\real_credentials_import.sql</code></li>
+            <li>Restart the application</li>
+            <li>Try logging in again</li>
+        </ol>
+        
+        <div class="warning">
+            <p><strong>Note:</strong> This will reset all user data in the database to the default values.</p>
+        </div>
+    </div>
+    
+    <div class="step">
+        <h2>Technical Details</h2>
+        <p>For developers, here's what's happening behind the scenes:</p>
+        
+        <ul>
+            <li>The system uses bcrypt to hash and verify passwords</li>
+            <li>The correct hash for 'password123' is: <code>$2a$10$yCbXUYDqF3/nYZxw8bfOre5i9XjUZxOAzJhYYT.Rq6LgBXlJtBE7a</code></li>
+            <li>The authentication is implemented in <code>src/pages/api/auth/[...nextauth].ts</code></li>
+            <li>User credentials are stored in the <code>users</code> table in the database</li>
+        </ul>
+    </div>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="60" fill="white" rx="4"/>
+  
+  <!-- Shield/Crest Shape -->
+  <g transform="translate(8, 8)">
+    <!-- Outer Shield -->
+    <path d="M22 4 L4 10 L4 20 C4 32 10 42 22 44 C34 42 40 32 40 20 L40 10 L22 4 Z" 
+          fill="#2E7D32" stroke="#1B5E20" stroke-width="1"/>
+    
+    <!-- Inner Divisions -->
+    <!-- Top Left - Book/Knowledge -->
+    <rect x="6" y="8" width="14" height="12" fill="#1976D2" rx="1"/>
+    <rect x="8" y="10" width="10" height="1" fill="white"/>
+    <rect x="8" y="12" width="8" height="1" fill="white"/>
+    <rect x="8" y="14" width="10" height="1" fill="white"/>
+    <rect x="8" y="16" width="6" height="1" fill="white"/>
+    
+    <!-- Top Right - Gear/Engineering -->
+    <circle cx="32" cy="14" r="6" fill="#FF5722"/>
+    <circle cx="32" cy="14" r="3" fill="white"/>
+    <rect x="29" y="8" width="6" height="2" fill="#FF5722"/>
+    <rect x="29" y="18" width="6" height="2" fill="#FF5722"/>
+    <rect x="26" y="11" width="2" height="6" fill="#FF5722"/>
+    <rect x="36" y="11" width="2" height="6" fill="#FF5722"/>
+    
+    <!-- Bottom Left - Atom/Science -->
+    <circle cx="14" cy="32" r="6" fill="#9C27B0"/>
+    <circle cx="14" cy="32" r="2" fill="white"/>
+    <ellipse cx="14" cy="32" rx="5" ry="2" fill="none" stroke="white" stroke-width="1"/>
+    <ellipse cx="14" cy="32" rx="2" ry="5" fill="none" stroke="white" stroke-width="1"/>
+    
+    <!-- Bottom Right - Globe/Global -->
+    <circle cx="32" cy="32" r="6" fill="#4CAF50"/>
+    <path d="M26 32 Q32 26 38 32 Q32 38 26 32" fill="none" stroke="white" stroke-width="1"/>
+    <path d="M32 26 Q26 32 32 38 Q38 32 32 26" fill="none" stroke="white" stroke-width="1"/>
+    <circle cx="32" cy="32" r="6" fill="none" stroke="white" stroke-width="1"/>
+  </g>
+  
+  <!-- College Name -->
+  <text x="55" y="20" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#2E7D32">
+    PALLAVI ENGINEERING
+  </text>
+  <text x="55" y="35" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#2E7D32">
+    COLLEGE
+  </text>
+  <text x="55" y="48" font-family="Arial, sans-serif" font-size="8" fill="#666">
+    (UGC - AUTONOMOUS)
+  </text>
+  
+  <!-- Decorative Elements -->
+  <rect x="55" y="52" width="120" height="1" fill="#2E7D32" opacity="0.3"/>
+</svg>

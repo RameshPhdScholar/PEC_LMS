@@ -1,0 +1,101 @@
+import React, { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/router';
+import {
+  Box,
+  Grid,
+  Paper,
+  Typography,
+  CircularProgress,
+} from '@mui/material';
+import DashboardLayout from '@/components/Dashboard/Layout';
+import { UserRole } from '@/types';
+
+export default function Dashboard() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (!session) {
+      router.push('/login');
+      return;
+    }
+
+    // Simulate loading
+    setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+  }, [session, status, router]);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+          <CircularProgress />
+        </Box>
+      </DashboardLayout>
+    );
+  }
+
+  // Determine dashboard content based on user role
+  const renderDashboardContent = () => {
+    const role = session?.user.role_id;
+
+    // Employee Dashboard
+    if (role === UserRole.Employee) {
+      return (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper elevation={2} sx={{ p: 3 }}>
+              <Typography variant="h5">Employee Dashboard</Typography>
+              <Typography>Welcome to the Employee Dashboard</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      );
+    }
+
+    // HOD or Principal Dashboard
+    if (role === UserRole.HOD || role === UserRole.Principal) {
+      return (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper elevation={2} sx={{ p: 3 }}>
+              <Typography variant="h5">
+                {role === UserRole.HOD ? 'HOD Dashboard' : 'Principal Dashboard'}
+              </Typography>
+              <Typography>
+                Welcome to the {role === UserRole.HOD ? 'HOD' : 'Principal'} Dashboard
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      );
+    }
+
+    // Admin or Super Admin Dashboard
+    return (
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <Typography variant="h5">
+              {role === UserRole.Admin ? 'Admin Dashboard' : 'Super Admin Dashboard'}
+            </Typography>
+            <Typography>
+              Welcome to the {role === UserRole.Admin ? 'Admin' : 'Super Admin'} Dashboard
+            </Typography>
+          </Paper>
+        </Grid>
+      </Grid>
+    );
+  };
+
+  return (
+    <DashboardLayout>
+      {renderDashboardContent()}
+    </DashboardLayout>
+  );
+}

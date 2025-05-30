@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix PowerShell Execution Policy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .step h2 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix PowerShell Execution Policy for Leave Management System</h1>
+    
+    <div class="step">
+        <h2>Step 1: Open PowerShell as Administrator</h2>
+        <p>Right-click on the PowerShell icon and select "Run as administrator".</p>
+    </div>
+    
+    <div class="step">
+        <h2>Step 2: Check Current Execution Policy</h2>
+        <p>Run the following command to check your current execution policy:</p>
+        <pre>Get-ExecutionPolicy</pre>
+    </div>
+    
+    <div class="step">
+        <h2>Step 3: Set Execution Policy to Allow Scripts</h2>
+        <p>Run one of the following commands based on your security requirements:</p>
+        
+        <p><strong>Option 1 (Recommended):</strong> Allow local scripts but require remote scripts to be signed:</p>
+        <pre>Set-ExecutionPolicy RemoteSigned</pre>
+        
+        <p><strong>Option 2:</strong> Allow all scripts (less secure):</p>
+        <pre>Set-ExecutionPolicy Unrestricted</pre>
+        
+        <div class="warning">
+            <p><strong>Warning:</strong> Setting the execution policy to Unrestricted reduces security. Only use this option if necessary and in a controlled environment.</p>
+        </div>
+    </div>
+    
+    <div class="step">
+        <h2>Step 4: Confirm the Change</h2>
+        <p>Type "Y" and press Enter when prompted to confirm the change.</p>
+    </div>
+    
+    <div class="step">
+        <h2>Step 5: Run the Setup Script Again</h2>
+        <p>After changing the execution policy, try running the setup script again:</p>
+        <pre>.\setup_dual_roles.bat</pre>
+        <p>Or use the development mode script:</p>
+        <pre>.\setup_dev_mode.bat</pre>
+    </div>
+    
+    <div class="step">
+        <h2>Alternative: Run for Current Session Only</h2>
+        <p>If you don't want to change the system-wide policy, you can bypass it for the current PowerShell session only:</p>
+        <pre>powershell -ExecutionPolicy Bypass -File .\setup_dual_roles.bat</pre>
+    </div>
+    
+    <div class="step">
+        <h2>Alternative: Start the Application Manually</h2>
+        <p>If you're still having issues, you can run these commands directly:</p>
+        <pre>
+# Import database data
+"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -proot leave_management < src\db\real_credentials_import.sql
+
+# Start development server
+npx next dev
+        </pre>
+    </div>
+</body>
+</html>
